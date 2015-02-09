@@ -38,11 +38,27 @@ namespace Escapey
 			m_mMenu.AddItem(new MenuItem("delay", "Turn Off After X Seconds").SetValue(new Slider(5, 0, 25)));
 			m_mMenu.AddItem(new MenuItem("autoLowHP", "HP Percentage to Auto Enable").SetValue(new Slider(0, 0, 100)));
 			m_mMenu.AddItem(new MenuItem("distance", "Distance to Flash Away").SetValue(new Slider(100, 50, 1000)));
-			m_mMenu.AddItem(new MenuItem("drawEnabled", "Draw Escape Status").SetValue(Color.FromArgb(255, 255, 0, 0)));
-			m_mMenu.AddItem(new MenuItem("drawRange", "Draw Flash Range").SetValue(Color.FromArgb(255, 255, 0, 0)));
+			m_mMenu.AddItem(new MenuItem("drawEnabled", "Draw Escape Status").SetValue(true));
+			m_mMenu.AddItem(new MenuItem("drawRange", "Draw Flash Range").SetValue(new Circle(true, Color.FromArgb(255, 255, 0, 0))));
 			m_mMenu.AddToMainMenu();
 
 			Obj_AI_Base.OnProcessSpellCast += ProcessSpell;
+			Drawing.OnDraw += Draw;
+		}
+
+		private static void Draw(EventArgs args)
+		{
+			if (m_mMenu.Item("drawRange").GetValue<Circle>().Active)
+			{
+				Render.Circle.DrawCircle(myHero.Position, m_mMenu.Item("distance").GetValue<int>(), m_mMenu.Item("drawRange").GetValue<Circle>().Color);
+			}
+			if (m_mMenu.Item("drawEnabled").GetValue<bool>() && m_mMenu.Item("enabled").GetValue<bool>())
+			{
+				double x = (Drawing.Width - (Drawing.Width * 0.57));
+				double y = (Drawing.Height - (Drawing.Height * 0.85));
+
+				Drawing.DrawText((float)x, (float)y, Color.FromArgb(255, 255, 0, 0), "FLASH ESCAPE TURNED ON");
+			}
 		}
 
 		private static SpellSlot GetFlashSlot()

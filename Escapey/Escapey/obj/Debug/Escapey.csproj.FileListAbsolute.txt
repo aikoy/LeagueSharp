@@ -1,1 +1,2 @@
 C:\Users\Administrator\Documents\GravesSharp\Escapey\Escapey\bin\Debug\Escapey.exe.config
+C:\Users\Administrator\Documents\Repositories\LeagueSharp\Escapey\Escapey\bin\Debug\Escapey.exe.config
