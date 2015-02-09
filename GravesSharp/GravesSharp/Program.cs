@@ -121,7 +121,7 @@ namespace GravesSharp
 				miscMenu.AddItem(new MenuItem("waitTimeQ", "Wait Time if Q is Down").SetValue(new Slider(3, 0, 15)));
 				miscMenu.AddItem(new MenuItem("turnOffAfterAA", "Turn off E Panic Mode After AA").SetValue(true));
 				miscMenu.AddItem(new MenuItem("useW", "Cast W in E Panic Mode").SetValue(true));
-				miscMenu.AddItem(new MenuItem("autoUlt", "Auto Aim Ult").SetValue(true));
+				miscMenu.AddItem(new MenuItem("autoUlt", "Auto Aim Ult").SetValue(new KeyBind('V', KeyBindType.Press)));
 			Menu ksMenu = new Menu("KS Options", "ks");
 			m_config.AddSubMenu(ksMenu);
 				ksMenu.AddItem(new MenuItem("ksQ", "KS with Q").SetValue(true));
@@ -130,11 +130,23 @@ namespace GravesSharp
 
 			m_config.AddToMainMenu();
 
+			Game.OnGameUpdate += delegate(EventArgs eventArgs)
+			{
+				if (m_config.SubMenu("misc").Item("autoUlt").GetValue<bool>())
+				{
+					Obj_AI_Base target = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.Physical);
+					if (target.IsValid && target.IsTargetable)
+					{
+						R.Cast(target);
+					}
+				}
+			};
 			Game.OnGameUpdate += KillSteal;
 			Drawing.OnDraw += Draw;
-			Spellbook.OnCastSpell += CastSpell;
 			AntiGapcloser.OnEnemyGapcloser += AntiGapcloser_OnEnemyGapcloser;
 			Orbwalking.AfterAttack += PanicE;
+
+
 
 			if (m_config.SubMenu("misc").Item("castTime").GetValue<StringList>().SelectedValue.Equals("After Auto Attack"))
 			{
@@ -431,18 +443,6 @@ namespace GravesSharp
 		{
 			return (myHero.Spellbook.CanUseSpell(spell.Slot) == SpellState.Ready ||
 			        myHero.Spellbook.CanUseSpell(spell.Slot) == SpellState.Surpressed);
-		}
-
-		private static void CastSpell(Spellbook sender, SpellbookCastSpellEventArgs args)
-		{
-			if (m_config.SubMenu("misc").Item("autoUlt").GetValue<bool>() && sender.Owner.IsMe)
-			{
-				if (args.Slot == SpellSlot.R)
-				{
-					args.Process = false;
-					Utility.DelayAction.Add(25, CastR);
-				}
-			}
 		}
 
 		private static void CastR()
