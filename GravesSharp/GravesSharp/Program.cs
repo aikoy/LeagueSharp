@@ -121,7 +121,7 @@ namespace GravesSharp
 				miscMenu.AddItem(new MenuItem("waitTimeQ", "Wait Time if Q is Down").SetValue(new Slider(3, 0, 15)));
 				miscMenu.AddItem(new MenuItem("turnOffAfterAA", "Turn off E Panic Mode After AA").SetValue(true));
 				miscMenu.AddItem(new MenuItem("useW", "Cast W in E Panic Mode").SetValue(true));
-				miscMenu.AddItem(new MenuItem("autoUlt", "Auto Aim Ult").SetValue(new KeyBind('V', KeyBindType.Press)));
+				miscMenu.AddItem(new MenuItem("autoUlt", "Auto Aim Ult").SetValue(new KeyBind('R', KeyBindType.Press)));
 			Menu ksMenu = new Menu("KS Options", "ks");
 			m_config.AddSubMenu(ksMenu);
 				ksMenu.AddItem(new MenuItem("ksQ", "KS with Q").SetValue(true));
