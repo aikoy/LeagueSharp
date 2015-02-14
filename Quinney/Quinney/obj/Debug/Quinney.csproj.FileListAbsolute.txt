@@ -1,1 +1,2 @@
 C:\Users\Administrator\Documents\GravesSharp\Quinney\Quinney\bin\Debug\Quinney.exe.config
+C:\Users\Administrator\Documents\Repositories\LeagueSharp\Quinney\Quinney\bin\Debug\Quinney.exe.config
