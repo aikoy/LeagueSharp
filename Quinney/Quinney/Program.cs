@@ -300,7 +300,7 @@ namespace Quinney
 			{
 				Q.Cast(target);
 			}
-			else if (myHero.Distance(target) <= E.Range && ShouldCastE(target))
+			else if (m_mMenu.SubMenu("combo").Item("useE").GetValue<bool>() && myHero.Distance(target) <= E.Range && ShouldCastE(target))
 			{
 				E.Cast(target);
 			}
@@ -312,7 +312,7 @@ namespace Quinney
 			{
 				Q.Cast(target);
 			}
-			else if (myHero.Distance(target) <= E.Range && ShouldCastE(target))
+			else if (m_mMenu.SubMenu("combo").Item("useEValor").GetValue<bool>() && myHero.Distance(target) <= E.Range && ShouldCastE(target))
 			{
 				E.Cast(target);
 			}
@@ -330,6 +330,8 @@ namespace Quinney
 		{
 			if (m_qfForm == QuinnForm.Bird)
 				return (myHero.Distance(target) > (myHero.AttackRange + 50));
+			if (myHero.Distance(target) <= 200)
+				return true;
 			PredictionOutput output = Prediction.GetPrediction(new PredictionInput
 			{
 				Unit = (Obj_AI_Hero)target, 
