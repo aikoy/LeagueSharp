@@ -5,8 +5,6 @@ using LeagueSharp;
 using LeagueSharp.Common;
 using SharpDX;
 using Color = System.Drawing.Color;
-using Notification = LeagueSharp.Common.Notification;
-using Notifications = LeagueSharp.Common.Notifications;
 
 namespace GravesSharp
 {
@@ -16,7 +14,6 @@ namespace GravesSharp
 		public static Menu m_mMenu;
 		private static Obj_AI_Hero myHero;
 		private static int m_iTurnOffCastE = 0;
-		private static Notification m_nENotification;
 
 		public static SpellEx Q;
 		//public static SpellEx Q1;
@@ -37,8 +34,6 @@ namespace GravesSharp
 			if (!myHero.BaseSkinName.Equals("Graves"))
 				return;
 
-			m_nENotification = new Notification("");
-			Notifications.AddNotification(m_nENotification);
 			Q = new SpellEx(SpellSlot.Q, 840f);
 			//Q1 = new SpellEx(SpellSlot.Q, 930f);
 			W = new SpellEx(SpellSlot.W, 950f);
@@ -110,16 +105,7 @@ namespace GravesSharp
 				drawMenu.AddItem(new MenuItem("W", "Draw W Range").SetValue(new Circle(false, Color.FromArgb(100, 255, 0, 255))));
 				drawMenu.AddItem(new MenuItem("E", "Draw E Range").SetValue(new Circle(true, Color.FromArgb(100, 255, 0, 255))));
 				drawMenu.AddItem(new MenuItem("R", "Draw R Range").SetValue(new Circle(false, Color.FromArgb(100, 255, 0, 255))));
-				drawMenu.AddItem(new MenuItem("panicE", "Draw E Panic Status").SetValue(true)).ValueChanged +=
-					delegate(object sender, OnValueChangeEventArgs eventArgs)
-					{
-						if (!eventArgs.GetNewValue<bool>())
-						{
-							Notifications.RemoveNotification(m_nENotification);
-							return;
-						}
-						Notifications.AddNotification(m_nENotification);
-					};
+				drawMenu.AddItem(new MenuItem("panicE", "Draw E Panic Status").SetValue(true));
 				drawMenu.AddItem(comboDmg);
 			Menu miscMenu = new Menu("Misc Options", "misc");
 			m_mMenu.AddSubMenu(miscMenu);
@@ -140,29 +126,37 @@ namespace GravesSharp
 
 			m_mMenu.AddToMainMenu();
 
-			Game.OnGameUpdate += delegate(EventArgs eventArgs)
+			Drawing.OnDraw += delegate(EventArgs eventArgs)
 			{
-				if (Notifications.IsValidNotification(m_nENotification))
+				if (m_mMenu.SubMenu("draw").Item("panicE").GetValue<bool>())
 				{
 					string text = "";
+					string text2 = "";
 					if (m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
 					{
 						text += "Panic E Enabled";
 						if (m_mMenu.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0)
 						{
-							text += ("\n" + String.Format("Tuning off in {0} seconds", (m_iTurnOffCastE - Environment.TickCount)/1000));
+							text2 = (String.Format("Tuning off in {0} seconds", (m_iTurnOffCastE - Environment.TickCount) / 1000));
 						}
 					}
 
-					m_nENotification.Text = text;
-					if (m_nENotification.Text == "")
-						m_nENotification.BoxColor = new ColorBGRA(0f, 0f, 0f, 0f);
-					else
-						m_nENotification.BoxColor = new ColorBGRA(0f, 0f, 0f, 255f);
-				}
-				else if (!Notifications.IsValidNotification(m_nENotification) && m_mMenu.SubMenu("misc").Item("panicE").GetValue<bool>())
-				{
-					Notifications.AddNotification(m_nENotification);
+					if (text != "")
+					{
+						text = text.ToUpper();
+						double x = (Drawing.Width - (Drawing.Width * 0.15));
+						double y = (Drawing.Height - (Drawing.Height * 0.85));
+
+						Drawing.DrawText((float)x, (float)y, Color.FromArgb(255, 255, 0, 0), text);
+
+						if (text2 != "")
+						{
+							text2 = text2.ToUpper();
+							x = (Drawing.Width - (Drawing.Width * 0.17));
+							y = (Drawing.Height - (Drawing.Height * 0.80));
+							Drawing.DrawText((float)x, (float)y, Color.FromArgb(255, 255, 0, 0), text2);
+						}
+					}
 				}
 			};
 
@@ -182,7 +176,6 @@ namespace GravesSharp
 			Drawing.OnDraw += Draw;
 			AntiGapcloser.OnEnemyGapcloser += AntiGapcloser_OnEnemyGapcloser;
 			Orbwalking.AfterAttack += PanicE;
-
 
 
 			if (m_mMenu.SubMenu("misc").Item("castTime").GetValue<StringList>().SelectedValue.Equals("After Auto Attack"))
@@ -480,24 +473,11 @@ namespace GravesSharp
 
 		private static void Draw(EventArgs args)
 		{
-			/*if (m_mMenu.SubMenu("draw").Item("panicE").GetValue<bool>() && m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
-			{
-				double x = (Drawing.Width - (Drawing.Width * 0.58));
-				double y = (Drawing.Height - (Drawing.Height * 0.78));
-
-				String text = "PANIC MODE ON";
-				if (m_mMenu.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0)
-				{
-					text += String.Format(" - TURNING OFF IN {0} SECONDS", ((m_iTurnOffCastE - Environment.TickCount) / 1000));
-				}
-				Drawing.DrawText((float)x, (float)y, Color.FromArgb(255, 255, 0, 0), text);
-			}*/
-
 			foreach (MenuItem item in m_mMenu.SubMenu("draw").Items)
 			{
 				if (item.Name.Length == 1 && item.GetValue<Circle>().Active)
 				{
-					Spell spell = GetSpell(item.Name[0]);
+					SpellEx spell = GetSpell(item.Name[0]);
 					if (spell != null)
 					{
 						Render.Circle.DrawCircle(myHero.Position, spell.Range, item.GetValue<Circle>().Color);
@@ -506,7 +486,7 @@ namespace GravesSharp
 			}
 		}
 
-		private static Spell GetSpell(char spell)
+		private static SpellEx GetSpell(char spell)
 		{
 			switch (spell)
 			{
