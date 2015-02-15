@@ -17,12 +17,12 @@ namespace GravesSharp
 		private static int m_iTurnOffCastE = 0;
 		private static ToastNotification m_nENotification;
 
-		public static Spell Q;
-		//public static Spell Q1;
-		public static Spell W;
-		public static Spell E;
-		public static Spell R;
-		public static Spell R1;
+		public static SpellEx Q;
+		//public static SpellEx Q1;
+		public static SpellEx W;
+		public static SpellEx E;
+		public static SpellEx R;
+		public static SpellEx R1;
 
 		static void Main(string[] args)
 		{
@@ -38,12 +38,12 @@ namespace GravesSharp
 
 			m_nENotification = new ToastNotification("", new ColorBGRA(255f, 255f, 255f, 255f), -1);
 			Notification.AddNotification(m_nENotification);
-			Q = new Spell(SpellSlot.Q, 840f);
-			//Q1 = new Spell(SpellSlot.Q, 930f);
-			W = new Spell(SpellSlot.W, 950f);
-			E = new Spell(SpellSlot.E, 450f);
-			R = new Spell(SpellSlot.R, 1000f);
-			R1 = new Spell(SpellSlot.R, 1600f);
+			Q = new SpellEx(SpellSlot.Q, 840f);
+			//Q1 = new SpellEx(SpellSlot.Q, 930f);
+			W = new SpellEx(SpellSlot.W, 950f);
+			E = new SpellEx(SpellSlot.E, 450f);
+			R = new SpellEx(SpellSlot.R, 1000f);
+			R1 = new SpellEx(SpellSlot.R, 1600f);
 
 			Q.SetSkillshot(0.26f, 20f * (float)Math.PI / 180, 1800f, false, SkillshotType.SkillshotCone);
 			//Q1.SetSkillshot(0.26f, 50f, 1950f, false, SkillshotType.SkillshotLine);
@@ -186,8 +186,8 @@ namespace GravesSharp
 
 			if (m_mMenu.SubMenu("misc").Item("castTime").GetValue<StringList>().SelectedValue.Equals("After Auto Attack"))
 			{
-				Orbwalking.AfterAttack += Combo;
-				Orbwalking.AfterAttack += Harass;
+				ReadyForSpellCast.OnReadyForSpellCast += Combo;
+				ReadyForSpellCast.OnReadyForSpellCast += Harass;
 			}
 			else if (m_mMenu.SubMenu("misc").Item("castTime").GetValue<StringList>().SelectedValue.Equals("Any Time"))
 			{
@@ -216,13 +216,13 @@ namespace GravesSharp
 				Game.OnGameUpdate -= Combo;
 				Game.OnGameUpdate -= Harass;
 
-				Orbwalking.AfterAttack += Combo;
-				Orbwalking.AfterAttack += Harass;
+				ReadyForSpellCast.OnReadyForSpellCast += Combo;
+				ReadyForSpellCast.OnReadyForSpellCast += Harass;
 			}
 			else if (newVal.Equals("Any Time"))
 			{
-				Orbwalking.AfterAttack -= Combo;
-				Orbwalking.AfterAttack -= Harass;
+				ReadyForSpellCast.OnReadyForSpellCast -= Combo;
+				ReadyForSpellCast.OnReadyForSpellCast -= Harass;
 
 				Game.OnGameUpdate += Combo;
 				Game.OnGameUpdate += Harass;
@@ -237,10 +237,14 @@ namespace GravesSharp
 				_Combo(target);
 		}
 
-		private static void Combo(AttackableUnit unit, AttackableUnit target)
+		private static void Combo(ReadyForSpellCastEventArgs args)
 		{
-			if (unit.IsMe && target.GetType() == myHero.GetType())
-				_Combo((Obj_AI_Base)target);
+			if (args.unit.IsMe)
+			{
+				Obj_AI_Base target = TargetSelector.GetTarget(Q.Range, TargetSelector.DamageType.Physical);
+				if (target.IsValid<Obj_AI_Hero>())
+					_Combo(target);
+			}
 		}
 
 		private static void _Combo(Obj_AI_Base target)
@@ -255,7 +259,7 @@ namespace GravesSharp
 					useQ = (useQ && !(m_mMenu.SubMenu("misc").Item("useQ").GetValue<bool>()));
 					useW = (useW && !(m_mMenu.SubMenu("misc").Item("useW").GetValue<bool>()));
 
-					if (!useQ && myHero.Spellbook.GetSpell(SpellSlot.Q).Cooldown > m_mMenu.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
+					if (!useQ && (myHero.Spellbook.GetSpell(SpellSlot.E).CooldownExpires - Game.Time) > m_mMenu.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
 					{
 						useQ = true;
 					}
@@ -265,7 +269,7 @@ namespace GravesSharp
 				{
 					Q.Cast(target);
 				}
-				else if (useW && Ready(W))
+				if (useW && Ready(W))
 				{
 					W.Cast(target);
 				}
@@ -280,10 +284,14 @@ namespace GravesSharp
 				_Harass(target);
 		}
 
-		private static void Harass(AttackableUnit unit, AttackableUnit target)
+		private static void Harass(ReadyForSpellCastEventArgs args)
 		{
-			if (unit.IsMe && target.GetType() == myHero.GetType())
-				_Harass((Obj_AI_Base)target);
+			if (args.unit.IsMe)
+			{
+				Obj_AI_Base target = TargetSelector.GetTarget(Q.Range, TargetSelector.DamageType.Physical);
+				if (target.IsValid<Obj_AI_Hero>())
+					_Harass(target);
+			}
 		}
 
 		private static void _Harass(Obj_AI_Base target)
@@ -308,7 +316,7 @@ namespace GravesSharp
 				{
 					Q.Cast(target);
 				}
-				else if (useW && Ready(W))
+				if (useW && Ready(W))
 				{
 					W.Cast(target);
 				}
@@ -329,7 +337,15 @@ namespace GravesSharp
 			{
 				if (m_mMenu.SubMenu("misc").Item("useQ").GetValue<bool>())
 				{
-					if (Ready(Q))
+					if (!Ready(Q))
+					{
+						if ((myHero.Spellbook.GetSpell(SpellSlot.Q).CooldownExpires - Game.Time) <=
+						    m_mMenu.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
+						{
+							return;
+						}
+					}
+					else
 					{
 						Q.Cast(target);
 						GameObjectProcessSpellCast castSpell = null;
@@ -344,7 +360,7 @@ namespace GravesSharp
 										Vector3 mouseVec = Game.CursorPos;
 										Vector3 myPos = myHero.Position;
 										Vector3 delta = (myPos - mouseVec).Normalized();
-										Vector3 castPos = myPos - (delta * E.Range);
+										Vector3 castPos = myPos - (delta*E.Range);
 
 										ForceCast(E, castPos);
 										Utility.DelayAction.Add(1, () => Obj_AI_Base.OnProcessSpellCast -= castSpell);
@@ -375,10 +391,6 @@ namespace GravesSharp
 						};
 						Obj_AI_Base.OnProcessSpellCast += castSpell;
 						Utility.DelayAction.Add(500 + Game.Ping, () => Obj_AI_Base.OnProcessSpellCast -= castSpell);
-						return;
-					}
-					if ((myHero.Spellbook.GetSpell(SpellSlot.Q).CooldownExpires - Game.Time) <= m_mMenu.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
-					{
 						return;
 					}
 				}
@@ -444,35 +456,13 @@ namespace GravesSharp
 			}
 		}
 
-		public static void ForceCast(Spell s, Vector3 pos)
+		public static void ForceCast(SpellEx s, Vector3 pos)
 		{
-			GameUpdate update = null;
-			update = delegate(EventArgs args)
-			{
-				if (Ready(s) && m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
-				{
-					s.Cast(pos);
-					return;
-				}
-				Game.OnGameUpdate -= update;
-			};
-			Game.OnGameUpdate += update;
-			Utility.DelayAction.Add(2000, () => Game.OnGameUpdate -= update);
+			s.ForceCast(pos);
 		}
-		public static void ForceCast(Spell s, Obj_AI_Base enemy)
+		public static void ForceCast(SpellEx s, Obj_AI_Base enemy)
 		{
-			GameUpdate update = null;
-			update = delegate(EventArgs args)
-			{
-				if (Ready(s) && m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
-				{
-					s.Cast(enemy);
-					return;
-				}
-				Game.OnGameUpdate -= update;
-			};
-			Game.OnGameUpdate += update;
-			Utility.DelayAction.Add(2000, () => Game.OnGameUpdate -= update);
+			s.ForceCast(enemy);
 		}
 
 		public static bool Ready(Spell spell)
