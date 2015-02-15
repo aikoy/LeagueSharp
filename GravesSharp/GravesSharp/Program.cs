@@ -5,8 +5,8 @@ using LeagueSharp;
 using LeagueSharp.Common;
 using SharpDX;
 using Color = System.Drawing.Color;
-using Notifications;
-using Notification = Notifications.Notification;
+using Notification = LeagueSharp.Common.Notification;
+using Notifications = LeagueSharp.Common.Notifications;
 
 namespace GravesSharp
 {
@@ -16,7 +16,7 @@ namespace GravesSharp
 		public static Menu m_mMenu;
 		private static Obj_AI_Hero myHero;
 		private static int m_iTurnOffCastE = 0;
-		private static ToastNotification m_nENotification;
+		private static Notification m_nENotification;
 
 		public static SpellEx Q;
 		//public static SpellEx Q1;
@@ -37,8 +37,8 @@ namespace GravesSharp
 			if (!myHero.BaseSkinName.Equals("Graves"))
 				return;
 
-			m_nENotification = new ToastNotification("", new ColorBGRA(255f, 255f, 255f, 255f), -1);
-			Notification.AddNotification(m_nENotification);
+			m_nENotification = new Notification("");
+			Notifications.AddNotification(m_nENotification);
 			Q = new SpellEx(SpellSlot.Q, 840f);
 			//Q1 = new SpellEx(SpellSlot.Q, 930f);
 			W = new SpellEx(SpellSlot.W, 950f);
@@ -115,10 +115,10 @@ namespace GravesSharp
 					{
 						if (!eventArgs.GetNewValue<bool>())
 						{
-							Notification.RemoveNotification(m_nENotification);
+							Notifications.RemoveNotification(m_nENotification);
 							return;
 						}
-						Notification.AddNotification(m_nENotification);
+						Notifications.AddNotification(m_nENotification);
 					};
 				drawMenu.AddItem(comboDmg);
 			Menu miscMenu = new Menu("Misc Options", "misc");
@@ -142,27 +142,27 @@ namespace GravesSharp
 
 			Game.OnGameUpdate += delegate(EventArgs eventArgs)
 			{
-				if (m_nENotification.IsValid)
+				if (Notifications.IsValidNotification(m_nENotification))
 				{
-					List<string> list = new List<string>();
+					string text = "";
 					if (m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
 					{
-						list.Add("Panic E Enabled");
+						text += "Panic E Enabled";
 						if (m_mMenu.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0)
 						{
-							list.Add(String.Format("Tuning off in {0} seconds", (m_iTurnOffCastE - Environment.TickCount) / 1000));
+							text += ("\n" + String.Format("Tuning off in {0} seconds", (m_iTurnOffCastE - Environment.TickCount)/1000));
 						}
 					}
 
-					m_nENotification.Text = list.ToArray();
-					if (m_nENotification.Text.Length == 0)
-						m_nENotification.ToastColor = new ColorBGRA(0f, 0f, 0f, 0f);
+					m_nENotification.Text = text;
+					if (m_nENotification.Text == "")
+						m_nENotification.BoxColor = new ColorBGRA(0f, 0f, 0f, 0f);
 					else
-						m_nENotification.ToastColor = new ColorBGRA(0f, 0f, 0f, 255f);
+						m_nENotification.BoxColor = new ColorBGRA(0f, 0f, 0f, 255f);
 				}
-				else if (!m_nENotification.IsValid && m_mMenu.SubMenu("misc").Item("panicE").GetValue<bool>())
+				else if (!Notifications.IsValidNotification(m_nENotification) && m_mMenu.SubMenu("misc").Item("panicE").GetValue<bool>())
 				{
-					Notification.AddNotification(m_nENotification);
+					Notifications.AddNotification(m_nENotification);
 				}
 			};
 
