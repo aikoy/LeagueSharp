@@ -1,30 +1,28 @@
 ﻿using System;
-//using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
-//using System.Drawing;
-//using System.Globalization;
-//using System.Text;
-//using System.Threading.Tasks;
 using LeagueSharp;
 using LeagueSharp.Common;
 using SharpDX;
 using Color = System.Drawing.Color;
+using Notifications;
 
 namespace GravesSharp
 {
 	class Program
 	{
-		public static Orbwalking.Orbwalker m_orbwalker;
-		public static Menu m_config;
+		public static Orbwalking.Orbwalker m_oOrbwalker;
+		public static Menu m_mMenu;
 		private static Obj_AI_Hero myHero;
 		private static int m_iTurnOffCastE = 0;
+		private static ToastNotification m_nENotification;
 
 		public static Spell Q;
 		//public static Spell Q1;
 		public static Spell W;
 		public static Spell E;
 		public static Spell R;
-		//public static Spell R1;
+		public static Spell R1;
 
 		static void Main(string[] args)
 		{
@@ -38,36 +36,38 @@ namespace GravesSharp
 			if (!myHero.BaseSkinName.Equals("Graves"))
 				return;
 
+			m_nENotification = new ToastNotification("", new ColorBGRA(255f, 255f, 255f, 255f), -1);
+			Notification.AddNotification(m_nENotification);
 			Q = new Spell(SpellSlot.Q, 840f);
 			//Q1 = new Spell(SpellSlot.Q, 930f);
 			W = new Spell(SpellSlot.W, 950f);
 			E = new Spell(SpellSlot.E, 450f);
 			R = new Spell(SpellSlot.R, 1000f);
-			//R1 = new Spell(SpellSlot.R, 1600f);
+			R1 = new Spell(SpellSlot.R, 1600f);
 
 			Q.SetSkillshot(0.26f, 20f * (float)Math.PI / 180, 1800f, false, SkillshotType.SkillshotCone);
 			//Q1.SetSkillshot(0.26f, 50f, 1950f, false, SkillshotType.SkillshotLine);
 			W.SetSkillshot(0.35f, 250f, 1650f, false, SkillshotType.SkillshotCircle);
 			R.SetSkillshot(0.25f, 120f, 2100f, false, SkillshotType.SkillshotLine);
-			//R1.SetSkillshot(0.26f, 20f * (float)Math.PI / 180, 2100f, false, SkillshotType.SkillshotCone);
+			R1.SetSkillshot(0.26f, 20f * (float)Math.PI / 180, 2100f, false, SkillshotType.SkillshotCone);
 
-			m_config = new Menu("GravesSharp", "GravesSharp", true);
+			m_mMenu = new Menu("GravesSharp", "GravesSharp", true);
 
 			Menu tsMenu = new Menu("Target Selector", "ts");
 			TargetSelector.AddToMenu(tsMenu);
-			m_config.AddSubMenu(tsMenu);
+			m_mMenu.AddSubMenu(tsMenu);
 
 			Menu orbwalkMenu = new Menu("Orbwalking", "orbwalk");
-			m_config.AddSubMenu(orbwalkMenu);
-			m_orbwalker = new Orbwalking.Orbwalker(orbwalkMenu);
+			m_mMenu.AddSubMenu(orbwalkMenu);
+			m_oOrbwalker = new Orbwalking.Orbwalker(orbwalkMenu);
 
 			Menu comboMenu = new Menu("Combo Options", "combo");
-			m_config.AddSubMenu(comboMenu);
+			m_mMenu.AddSubMenu(comboMenu);
 				comboMenu.AddItem(new MenuItem("enabled", "Combo Enabled").SetValue(new KeyBind(' ', KeyBindType.Press)));
 				comboMenu.AddItem(new MenuItem("useQ", "Use Q").SetValue(true));
 				comboMenu.AddItem(new MenuItem("useW", "Use W").SetValue(true));
 			Menu harassMenu = new Menu("Harass Options", "harass");
-			m_config.AddSubMenu(harassMenu);
+			m_mMenu.AddSubMenu(harassMenu);
 				harassMenu.AddItem(new MenuItem("enabled", "Harass Enabled").SetValue(new KeyBind('C', KeyBindType.Press)));
 				harassMenu.AddItem(new MenuItem("useQ", "Use Q").SetValue(true));
 				harassMenu.AddItem(new MenuItem("useW", "Use W").SetValue(false));
@@ -104,15 +104,24 @@ namespace GravesSharp
 			};
 
 			Menu drawMenu = new Menu("Draw Options", "draw");
-			m_config.AddSubMenu(drawMenu);
+			m_mMenu.AddSubMenu(drawMenu);
 				drawMenu.AddItem(new MenuItem("Q", "Draw Q Range").SetValue(new Circle(false, Color.FromArgb(100, 255, 0, 255))));
 				drawMenu.AddItem(new MenuItem("W", "Draw W Range").SetValue(new Circle(false, Color.FromArgb(100, 255, 0, 255))));
 				drawMenu.AddItem(new MenuItem("E", "Draw E Range").SetValue(new Circle(true, Color.FromArgb(100, 255, 0, 255))));
 				drawMenu.AddItem(new MenuItem("R", "Draw R Range").SetValue(new Circle(false, Color.FromArgb(100, 255, 0, 255))));
-				drawMenu.AddItem(new MenuItem("panicE", "Draw E Panic Status").SetValue(true));
+				drawMenu.AddItem(new MenuItem("panicE", "Draw E Panic Status").SetValue(true)).ValueChanged +=
+					delegate(object sender, OnValueChangeEventArgs eventArgs)
+					{
+						if (!eventArgs.GetNewValue<bool>())
+						{
+							Notification.RemoveNotification(m_nENotification);
+							return;
+						}
+						Notification.AddNotification(m_nENotification);
+					};
 				drawMenu.AddItem(comboDmg);
 			Menu miscMenu = new Menu("Misc Options", "misc");
-			m_config.AddSubMenu(miscMenu);
+			m_mMenu.AddSubMenu(miscMenu);
 				miscMenu.AddItem(new MenuItem("castTime", "When to Cast Spells").SetValue(new StringList(new[] { "After Auto Attack", "Any Time" }, 0))).ValueChanged += CastTimeChanged;
 				miscMenu.AddItem(new MenuItem("antiGapCloseE", "Use E as Anti-Gapclose").SetValue(true));
 				miscMenu.AddItem(new MenuItem("castE", "Enable E Panic Mode").SetValue(new KeyBind('A', KeyBindType.Toggle))).ValueChanged += CastEChanged;
@@ -123,21 +132,48 @@ namespace GravesSharp
 				miscMenu.AddItem(new MenuItem("useW", "Cast W in E Panic Mode").SetValue(true));
 				miscMenu.AddItem(new MenuItem("autoUlt", "Auto Aim Ult").SetValue(new KeyBind('R', KeyBindType.Press)));
 			Menu ksMenu = new Menu("KS Options", "ks");
-			m_config.AddSubMenu(ksMenu);
+			m_mMenu.AddSubMenu(ksMenu);
 				ksMenu.AddItem(new MenuItem("ksQ", "KS with Q").SetValue(true));
 				ksMenu.AddItem(new MenuItem("ksW", "KS with W").SetValue(false));
 				ksMenu.AddItem(new MenuItem("ksR", "KS with R").SetValue(true));
 
-			m_config.AddToMainMenu();
+			m_mMenu.AddToMainMenu();
 
 			Game.OnGameUpdate += delegate(EventArgs eventArgs)
 			{
-				if (m_config.SubMenu("misc").Item("autoUlt").GetValue<bool>())
+				if (m_nENotification.IsValid)
+				{
+					List<string> list = new List<string>();
+					if (m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
+					{
+						list.Add("Panic E Enabled");
+						if (m_mMenu.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0)
+						{
+							list.Add(String.Format("Tuning off in {0} seconds", (m_iTurnOffCastE - Environment.TickCount) / 1000));
+						}
+					}
+
+					m_nENotification.Text = list.ToArray();
+					if (m_nENotification.Text.Length == 0)
+						m_nENotification.ToastColor = new ColorBGRA(0f, 0f, 0f, 0f);
+					else
+						m_nENotification.ToastColor = new ColorBGRA(0f, 0f, 0f, 255f);
+				}
+				else if (!m_nENotification.IsValid && m_mMenu.SubMenu("misc").Item("panicE").GetValue<bool>())
+				{
+					Notification.AddNotification(m_nENotification);
+				}
+			};
+
+			Game.OnGameUpdate += delegate(EventArgs eventArgs)
+			{
+				if (m_mMenu.SubMenu("misc").Item("autoUlt").GetValue<KeyBind>().Active)
 				{
 					Obj_AI_Base target = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.Physical);
 					if (target.IsValid && target.IsTargetable)
 					{
-						R.Cast(target);
+						if (R1.Cast(target) != Spell.CastStates.SuccessfullyCasted)
+							R.Cast(target);
 					}
 				}
 			};
@@ -148,12 +184,12 @@ namespace GravesSharp
 
 
 
-			if (m_config.SubMenu("misc").Item("castTime").GetValue<StringList>().SelectedValue.Equals("After Auto Attack"))
+			if (m_mMenu.SubMenu("misc").Item("castTime").GetValue<StringList>().SelectedValue.Equals("After Auto Attack"))
 			{
 				Orbwalking.AfterAttack += Combo;
 				Orbwalking.AfterAttack += Harass;
 			}
-			else if (m_config.SubMenu("misc").Item("castTime").GetValue<StringList>().SelectedValue.Equals("Any Time"))
+			else if (m_mMenu.SubMenu("misc").Item("castTime").GetValue<StringList>().SelectedValue.Equals("Any Time"))
 			{
 				Game.OnGameUpdate += Combo;
 				Game.OnGameUpdate += Harass;
@@ -161,11 +197,11 @@ namespace GravesSharp
 
 			Game.OnGameUpdate += delegate(EventArgs eventArgs)
 			{
-				if (m_config.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0 && Environment.TickCount >= m_iTurnOffCastE)
+				if (m_mMenu.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0 && Environment.TickCount >= m_iTurnOffCastE)
 				{
-					KeyBind bind = m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>();
+					KeyBind bind = m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>();
 					bind.Active = false;
-					m_config.SubMenu("misc").Item("castE").SetValue(bind);
+					m_mMenu.SubMenu("misc").Item("castE").SetValue(bind);
 				}
 			};
 
@@ -209,17 +245,17 @@ namespace GravesSharp
 
 		private static void _Combo(Obj_AI_Base target)
 		{
-			if (m_config.SubMenu("combo").Item("enabled").GetValue<KeyBind>().Active)
+			if (m_mMenu.SubMenu("combo").Item("enabled").GetValue<KeyBind>().Active)
 			{
-				bool useQ = m_config.SubMenu("combo").Item("useQ").GetValue<bool>();
-				bool useW = m_config.SubMenu("combo").Item("useW").GetValue<bool>();
+				bool useQ = m_mMenu.SubMenu("combo").Item("useQ").GetValue<bool>();
+				bool useW = m_mMenu.SubMenu("combo").Item("useW").GetValue<bool>();
 
-				if (m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active && Ready(E))
+				if (m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active && Ready(E))
 				{
-					useQ = (useQ && !(m_config.SubMenu("misc").Item("useQ").GetValue<bool>()));
-					useW = (useW && !(m_config.SubMenu("misc").Item("useW").GetValue<bool>()));
+					useQ = (useQ && !(m_mMenu.SubMenu("misc").Item("useQ").GetValue<bool>()));
+					useW = (useW && !(m_mMenu.SubMenu("misc").Item("useW").GetValue<bool>()));
 
-					if (!useQ && myHero.Spellbook.GetSpell(SpellSlot.Q).Cooldown > m_config.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
+					if (!useQ && myHero.Spellbook.GetSpell(SpellSlot.Q).Cooldown > m_mMenu.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
 					{
 						useQ = true;
 					}
@@ -252,17 +288,17 @@ namespace GravesSharp
 
 		private static void _Harass(Obj_AI_Base target)
 		{
-			if (m_config.SubMenu("harass").Item("enabled").GetValue<KeyBind>().Active)
+			if (m_mMenu.SubMenu("harass").Item("enabled").GetValue<KeyBind>().Active)
 			{
-				bool useQ = m_config.SubMenu("harass").Item("useQ").GetValue<bool>();
-				bool useW = m_config.SubMenu("harass").Item("useW").GetValue<bool>();
+				bool useQ = m_mMenu.SubMenu("harass").Item("useQ").GetValue<bool>();
+				bool useW = m_mMenu.SubMenu("harass").Item("useW").GetValue<bool>();
 
-				if (m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active && Ready(E))
+				if (m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active && Ready(E))
 				{
-					useQ = (useQ && !(m_config.SubMenu("misc").Item("useQ").GetValue<bool>()));
-					useW = (useW && !(m_config.SubMenu("misc").Item("useW").GetValue<bool>()));
+					useQ = (useQ && !(m_mMenu.SubMenu("misc").Item("useQ").GetValue<bool>()));
+					useW = (useW && !(m_mMenu.SubMenu("misc").Item("useW").GetValue<bool>()));
 
-					if (!useQ && myHero.Spellbook.GetSpell(SpellSlot.Q).Cooldown > m_config.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
+					if (!useQ && myHero.Spellbook.GetSpell(SpellSlot.Q).Cooldown > m_mMenu.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
 					{
 						useQ = true;
 					}
@@ -289,9 +325,9 @@ namespace GravesSharp
 
 		private static void _PanicE(Obj_AI_Base target, Vector3 pos, bool mousePos = false)
 		{
-			if (target.IsValid && target.IsTargetable && m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active && Ready(E))
+			if (target.IsValid && target.IsTargetable && m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active && Ready(E))
 			{
-				if (m_config.SubMenu("misc").Item("useQ").GetValue<bool>())
+				if (m_mMenu.SubMenu("misc").Item("useQ").GetValue<bool>())
 				{
 					if (Ready(Q))
 					{
@@ -314,11 +350,11 @@ namespace GravesSharp
 										Utility.DelayAction.Add(1, () => Obj_AI_Base.OnProcessSpellCast -= castSpell);
 										Utility.DelayAction.Add(1, delegate
 										{
-											if (m_config.SubMenu("misc").Item("turnOffAfterAA").GetValue<bool>())
+											if (m_mMenu.SubMenu("misc").Item("turnOffAfterAA").GetValue<bool>())
 											{
-												KeyBind bind = m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>();
+												KeyBind bind = m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>();
 												bind.Active = false;
-												m_config.SubMenu("misc").Item("castE").SetValue(bind);
+												m_mMenu.SubMenu("misc").Item("castE").SetValue(bind);
 											}
 										});
 										return;
@@ -327,11 +363,11 @@ namespace GravesSharp
 									Utility.DelayAction.Add(1, () => Obj_AI_Base.OnProcessSpellCast -= castSpell);
 									Utility.DelayAction.Add(1, delegate
 									{
-										if (m_config.SubMenu("misc").Item("turnOffAfterAA").GetValue<bool>())
+										if (m_mMenu.SubMenu("misc").Item("turnOffAfterAA").GetValue<bool>())
 										{
-											KeyBind bind = m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>();
+											KeyBind bind = m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>();
 											bind.Active = false;
-											m_config.SubMenu("misc").Item("castE").SetValue(bind);
+											m_mMenu.SubMenu("misc").Item("castE").SetValue(bind);
 										}
 									});
 								}
@@ -341,12 +377,12 @@ namespace GravesSharp
 						Utility.DelayAction.Add(500 + Game.Ping, () => Obj_AI_Base.OnProcessSpellCast -= castSpell);
 						return;
 					}
-					if ((myHero.Spellbook.GetSpell(SpellSlot.Q).CooldownExpires - Game.Time) <= m_config.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
+					if ((myHero.Spellbook.GetSpell(SpellSlot.Q).CooldownExpires - Game.Time) <= m_mMenu.SubMenu("misc").Item("waitTimeQ").GetValue<Slider>().Value)
 					{
 						return;
 					}
 				}
-				else if (m_config.SubMenu("misc").Item("useW").GetValue<bool>() && Ready(W))
+				else if (m_mMenu.SubMenu("misc").Item("useW").GetValue<bool>() && Ready(W))
 				{
 					W.Cast(target);
 					GameObjectProcessSpellCast castSpell = null;
@@ -367,11 +403,11 @@ namespace GravesSharp
 									Utility.DelayAction.Add(1, () => Obj_AI_Base.OnProcessSpellCast -= castSpell);
 									Utility.DelayAction.Add(1, delegate
 									{
-										if (m_config.SubMenu("misc").Item("turnOffAfterAA").GetValue<bool>())
+										if (m_mMenu.SubMenu("misc").Item("turnOffAfterAA").GetValue<bool>())
 										{
-											KeyBind bind = m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>();
+											KeyBind bind = m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>();
 											bind.Active = false;
-											m_config.SubMenu("misc").Item("castE").SetValue(bind);
+											m_mMenu.SubMenu("misc").Item("castE").SetValue(bind);
 										}
 									});
 									return;
@@ -380,11 +416,11 @@ namespace GravesSharp
 								Utility.DelayAction.Add(1, () => Obj_AI_Base.OnProcessSpellCast -= castSpell);
 								Utility.DelayAction.Add(1, delegate
 								{
-									if (m_config.SubMenu("misc").Item("turnOffAfterAA").GetValue<bool>())
+									if (m_mMenu.SubMenu("misc").Item("turnOffAfterAA").GetValue<bool>())
 									{
-										KeyBind bind = m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>();
+										KeyBind bind = m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>();
 										bind.Active = false;
-										m_config.SubMenu("misc").Item("castE").SetValue(bind);
+										m_mMenu.SubMenu("misc").Item("castE").SetValue(bind);
 									}
 								});
 							}
@@ -413,7 +449,7 @@ namespace GravesSharp
 			GameUpdate update = null;
 			update = delegate(EventArgs args)
 			{
-				if (Ready(s) && m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
+				if (Ready(s) && m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
 				{
 					s.Cast(pos);
 					return;
@@ -428,7 +464,7 @@ namespace GravesSharp
 			GameUpdate update = null;
 			update = delegate(EventArgs args)
 			{
-				if (Ready(s) && m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
+				if (Ready(s) && m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
 				{
 					s.Cast(enemy);
 					return;
@@ -453,20 +489,20 @@ namespace GravesSharp
 
 		private static void Draw(EventArgs args)
 		{
-			if (m_config.SubMenu("draw").Item("panicE").GetValue<bool>() && m_config.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
+			/*if (m_mMenu.SubMenu("draw").Item("panicE").GetValue<bool>() && m_mMenu.SubMenu("misc").Item("castE").GetValue<KeyBind>().Active)
 			{
 				double x = (Drawing.Width - (Drawing.Width * 0.58));
 				double y = (Drawing.Height - (Drawing.Height * 0.78));
 
 				String text = "PANIC MODE ON";
-				if (m_config.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0)
+				if (m_mMenu.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0)
 				{
 					text += String.Format(" - TURNING OFF IN {0} SECONDS", ((m_iTurnOffCastE - Environment.TickCount) / 1000));
 				}
 				Drawing.DrawText((float)x, (float)y, Color.FromArgb(255, 255, 0, 0), text);
-			}
+			}*/
 
-			foreach (MenuItem item in m_config.SubMenu("draw").Items)
+			foreach (MenuItem item in m_mMenu.SubMenu("draw").Items)
 			{
 				if (item.Name.Length == 1 && item.GetValue<Circle>().Active)
 				{
@@ -500,28 +536,28 @@ namespace GravesSharp
 			foreach (Obj_AI_Hero enemy in ObjectManager.Get<Obj_AI_Hero>().Where(h => h.IsValidTarget()))
 			{
 				double damage = 0;
-				if (m_config.SubMenu("ks").Item("ksW").GetValue<bool>() && Ready(W) && myHero.Distance(enemy) <= (W.Range - 5))
+				if (m_mMenu.SubMenu("ks").Item("ksW").GetValue<bool>() && Ready(W) && myHero.Distance(enemy) <= (W.Range - 5))
 				{
-					damage = myHero.GetSpellDamage(enemy, SpellSlot.W) - 5;
+					damage = myHero.GetSpellDamage(enemy, SpellSlot.W) * 0.7;
 					if (enemy.Health <= damage)
 					{
 						W.Cast(enemy);
 						continue;
 					}
 				}
-				if (m_config.SubMenu("ks").Item("ksQ").GetValue<bool>() && Ready(Q) && myHero.Distance(enemy) <= (Q.Range - 5))
+				if (m_mMenu.SubMenu("ks").Item("ksQ").GetValue<bool>() && Ready(Q) && myHero.Distance(enemy) <= (Q.Range - 5))
 				{
-					damage = myHero.GetSpellDamage(enemy, SpellSlot.Q) - 5;
+					damage = myHero.GetSpellDamage(enemy, SpellSlot.Q) * 0.8;
 					if (enemy.Health <= damage)
 					{
 						Q.Cast(enemy);
 						continue;
 					}
 				}
-				if (m_config.SubMenu("ks").Item("ksW").GetValue<bool>() && m_config.SubMenu("ks").Item("ksQ").GetValue<bool>() &&
+				if (m_mMenu.SubMenu("ks").Item("ksW").GetValue<bool>() && m_mMenu.SubMenu("ks").Item("ksQ").GetValue<bool>() &&
 				    Ready(W) && Ready(Q) && myHero.Distance(enemy) <= (Q.Range - 5))
 				{
-					damage = myHero.GetSpellDamage(enemy, SpellSlot.W) + myHero.GetSpellDamage(enemy, SpellSlot.Q) - 5;
+					damage = (myHero.GetSpellDamage(enemy, SpellSlot.W) * 0.7) + (myHero.GetSpellDamage(enemy, SpellSlot.Q) * 0.8);
 					if (enemy.Health <= damage)
 					{
 						ForceCast(Q, enemy);
@@ -529,18 +565,21 @@ namespace GravesSharp
 						continue;
 					}
 				}
-				if (m_config.SubMenu("ks").Item("ksR").GetValue<bool>() && Ready(R) && myHero.Distance(enemy) <= R.Range && myHero.Distance(enemy) > (Q.Range / 2))
+				if (m_mMenu.SubMenu("ks").Item("ksR").GetValue<bool>() && Ready(R))
 				{
-					damage = myHero.GetSpellDamage(enemy, SpellSlot.R) - 5;
+					damage = myHero.GetSpellDamage(enemy, SpellSlot.R) * 0.9;
 					if (enemy.Health <= damage)
 					{
-						R.Cast(enemy, true);
+						if (myHero.Distance(enemy) <= R.Range)
+							R.Cast(enemy);
+						else if (myHero.Distance(enemy) <= R1.Range)
+							R1.Cast(enemy);
 					}
 				}
-				if (m_config.SubMenu("ks").Item("ksQ").GetValue<bool>() && m_config.SubMenu("ks").Item("ksR").GetValue<bool>() &&
+				if (m_mMenu.SubMenu("ks").Item("ksQ").GetValue<bool>() && m_mMenu.SubMenu("ks").Item("ksR").GetValue<bool>() &&
 					Ready(Q) && Ready(R) && myHero.Distance(enemy) <= (Q.Range - 5))
 				{
-					damage = myHero.GetSpellDamage(enemy, SpellSlot.Q) + myHero.GetSpellDamage(enemy, SpellSlot.R) - 5;
+					damage = (myHero.GetSpellDamage(enemy, SpellSlot.Q) * 0.9) + (myHero.GetSpellDamage(enemy, SpellSlot.R) * 0.8);
 					if (enemy.Health <= damage)
 					{
 						ForceCast(Q, enemy);
@@ -553,13 +592,13 @@ namespace GravesSharp
 
 		private static void CastEChanged(object sender, OnValueChangeEventArgs onValueChangeEventArgs)
 		{
-			if (m_config.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0 && onValueChangeEventArgs.GetNewValue<KeyBind>().Active)
-				m_iTurnOffCastE = Environment.TickCount + (m_config.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value * 1000);
+			if (m_mMenu.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value > 0 && onValueChangeEventArgs.GetNewValue<KeyBind>().Active)
+				m_iTurnOffCastE = Environment.TickCount + (m_mMenu.SubMenu("misc").Item("castEDisable").GetValue<Slider>().Value * 1000);
 		}
 
 		static void AntiGapcloser_OnEnemyGapcloser(ActiveGapcloser gapcloser)
 		{
-			if (m_config.SubMenu("misc").Item("antiGapCloseE").GetValue<bool>() && Ready(E))
+			if (m_mMenu.SubMenu("misc").Item("antiGapCloseE").GetValue<bool>() && Ready(E))
 			{
 				if (myHero.Distance(gapcloser.End) <= E.Range)
 				{
